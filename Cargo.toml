@@ -1,0 +1,15 @@
+[package]
+name = "benchmark-simple"
+version = "0.1.0"
+authors = ["Frank Denis <github@pureftpd.org>"]
+description = "A tiny, super simple and portable benchmarking library."
+readme = "README.md"
+keywords = ["bench", "benchmark", "simple"]
+license = "MIT"
+homepage = "https://github.com/jedisct1/rust-benchmark-simple"
+repository = "https://github.com/jedisct1/rust-benchmark-simple"
+categories = ["no-std", "wasm"]
+edition = "2018"
+
+[dependencies]
+precision = "0.1.12"
