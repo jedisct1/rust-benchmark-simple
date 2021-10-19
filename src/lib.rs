@@ -117,7 +117,7 @@ impl Display for Throughput {
             0..=999 => write!(f, "{:.2} /s", self.as_f64()),
             1_000..=999_999 => write!(f, "{:.2} K/s", self.as_kb()),
             1_000_000..=999_999_999 => write!(f, "{:.2} M/s", self.as_mb()),
-            _ => write!(f, "{:.2}G/s", self.as_gb()),
+            _ => write!(f, "{:.2} G/s", self.as_gb()),
         }
     }
 }
