@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use precision::*;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// Options.
 #[derive(Default, Clone, Debug)]
@@ -54,6 +54,12 @@ impl BenchResult {
 impl Display for BenchResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:.2}s", self.as_secs_f64())
+    }
+}
+
+impl Debug for BenchResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -113,6 +119,12 @@ impl Display for Throughput {
             1_000_000..=999_999_999 => write!(f, "{:.2} M/s", self.as_mb()),
             _ => write!(f, "{:.2}G/s", self.as_gb()),
         }
+    }
+}
+
+impl Debug for Throughput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
