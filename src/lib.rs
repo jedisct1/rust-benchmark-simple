@@ -132,7 +132,7 @@ impl Bench {
     /// Run a single test.
     pub fn run<F>(&self, options: Option<&Options>, mut f: F) -> BenchResult
     where
-        F: FnMut() -> (),
+        F: FnMut(),
     {
         let iterations = options.map(|o| o.iterations.unwrap_or(1)).unwrap_or(1);
         let start = self.precision.now();
@@ -144,5 +144,11 @@ impl Bench {
             elapsed,
             precision: self.precision.clone(),
         }
+    }
+}
+
+impl Default for Bench {
+    fn default() -> Self {
+        Self::new()
     }
 }
