@@ -1,7 +1,7 @@
-#![forbid(unsafe_code)]
-
 use precision::*;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::mem;
+use std::ptr;
 
 /// Options.
 #[derive(Default, Clone, Debug)]
@@ -163,4 +163,13 @@ impl Default for Bench {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Force the compiler to avoid optimizing away a value that is computed
+/// for benchmarking purposes, but not used afterwards.
+#[inline(never)]
+pub fn black_box<T>(dummy: T) -> T {
+    let ret = unsafe { ptr::read_volatile(&dummy) };
+    mem::forget(dummy);
+    ret
 }
