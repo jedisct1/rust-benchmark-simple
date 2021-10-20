@@ -50,7 +50,7 @@
 //!     pub max_rsd: f64,
 //!     /// Maximum benchmark duration time.
 //!     pub max_duration: Option<std::time::Duration>,
-//!     /// Verbose output
+//!     /// Verbose output.
 //!     pub verbose: bool,
 //! }
 //! ```
