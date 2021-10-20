@@ -13,7 +13,7 @@
 //! }
 //!
 //! let bench = Bench::new();
-//! let options = Options::default();
+//! let mut options = Options::default();
 //! let res = bench.run(&options, || test_function());
 //! println!("result: {}", res);
 //! ```
@@ -47,18 +47,27 @@ use std::rc::Rc;
 pub struct Options {
     /// Number of iterations to perform.
     pub iterations: u64,
+    /// Number of warm-up iterations to perform.
+    pub warmup_iterations: u64,
+    /// Minimum number of samples to collect.
+    pub min_samples: usize,
     /// Maximum number of samples to collect.
     pub max_samples: usize,
-    /// Maximum RSD to tolerate (in 0...100)
+    /// Maximum RSD to tolerate (in 0...100).
     pub max_rsd: f64,
+    /// Verbose output
+    pub verbose: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             iterations: 1,
-            max_samples: 3,
+            warmup_iterations: 0,
+            min_samples: 3,
+            max_samples: 5,
             max_rsd: 5.0,
+            verbose: false,
         }
     }
 }
@@ -209,14 +218,14 @@ impl Bench {
         Bench { precision }
     }
 
-    pub fn run_once<F>(&self, options: Rc<Options>, f: &mut F) -> BenchResult
+    fn run_once<F>(&self, options: Rc<Options>, f: &mut F) -> BenchResult
     where
         F: FnMut(),
     {
         let iterations = options.iterations;
         let start = self.precision.now();
         for _ in 0..iterations {
-            f();
+            black_box(f());
         }
         let elapsed = self.precision.now() - start;
         BenchResult {
@@ -233,11 +242,28 @@ impl Bench {
     {
         let options = Rc::new(options.clone());
         let max_samples = std::cmp::max(1, options.max_samples);
+        let verbose = options.verbose;
+
+        if verbose {
+            println!("Starting a new benchmark.");
+            if options.warmup_iterations > 0 {
+                println!("Warming up for {} iterations.", options.warmup_iterations);
+            }
+        }
+        for _ in 0..options.warmup_iterations {
+            black_box(f());
+        }
         let mut results = Vec::with_capacity(max_samples as usize);
-        for _ in 0..max_samples {
+        for i in 1..=max_samples {
+            if verbose {
+                println!("Running iteration {}.", i);
+            }
             let result = self.run_once(options.clone(), &mut f);
             results.push(result);
             if results.len() <= 1 {
+                if verbose {
+                    println!("Iteration {}: {}", i, results.last().unwrap());
+                }
                 continue;
             }
             let mean = results.iter().map(|r| r.as_secs_f64()).sum::<f64>() / results.len() as f64;
@@ -248,11 +274,18 @@ impl Bench {
                 / (results.len() - 1) as f64)
                 .sqrt();
             let rsd = std_dev * 100.0 / mean;
-            if rsd < options.max_rsd {
+            if verbose {
+                println!("Iteration {}: {:.2}s ± {:.2}%", i, mean, rsd);
+            }
+            if i >= options.min_samples && rsd < options.max_rsd {
                 break;
             }
         }
-        results.into_iter().min_by_key(|r| r.as_ns()).unwrap()
+        let result = results.into_iter().min_by_key(|r| r.as_ns()).unwrap();
+        if verbose {
+            println!("Result: {}", result);
+        }
+        result
     }
 }
 
