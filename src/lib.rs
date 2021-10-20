@@ -36,19 +36,48 @@
 use precision::*;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem;
+use std::ops::Add;
 use std::ptr;
+use std::rc::Rc;
 
 /// Options.
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Options {
     /// Number of iterations to perform.
-    iterations: Option<u64>,
+    pub iterations: u64,
+    /// Maximum number of samples to collect.
+    pub max_samples: usize,
+    /// Maximum RSD to tolerate (in 0...100)
+    pub max_rsd: f64,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            iterations: 1,
+            max_samples: 3,
+            max_rsd: 5.0,
+        }
+    }
 }
 
 /// A benchmark result.
 pub struct BenchResult {
     elapsed: Elapsed,
     precision: Precision,
+    options: Rc<Options>,
+}
+
+impl Add for BenchResult {
+    type Output = BenchResult;
+
+    fn add(self, other: BenchResult) -> Self::Output {
+        BenchResult {
+            elapsed: self.elapsed + other.elapsed,
+            precision: self.precision,
+            options: self.options,
+        }
+    }
 }
 
 impl BenchResult {
@@ -78,7 +107,9 @@ impl BenchResult {
     }
 
     /// Compute the throughput for a given volume of data.
-    pub fn throughput(self, volume: u128) -> Throughput {
+    /// The volume is the amount of bytes processed in a single iteration.
+    pub fn throughput(self, mut volume: u128) -> Throughput {
+        volume *= self.options.iterations as u128;
         Throughput {
             volume: volume as f64,
             result: self,
@@ -176,12 +207,11 @@ impl Bench {
         Bench { precision }
     }
 
-    /// Run a single test.
-    pub fn run<F>(&self, options: Option<&Options>, mut f: F) -> BenchResult
+    pub fn run_once<F>(&self, options: Rc<Options>, f: &mut F) -> BenchResult
     where
         F: FnMut(),
     {
-        let iterations = options.map(|o| o.iterations.unwrap_or(1)).unwrap_or(1);
+        let iterations = options.iterations;
         let start = self.precision.now();
         for _ in 0..iterations {
             f();
@@ -190,7 +220,40 @@ impl Bench {
         BenchResult {
             elapsed,
             precision: self.precision.clone(),
+            options,
         }
+    }
+
+    /// Run a single test.
+    pub fn run<F>(&self, options: Option<&Options>, mut f: F) -> BenchResult
+    where
+        F: FnMut(),
+    {
+        let options = Rc::new(match options {
+            Some(options) => options.clone(),
+            None => Default::default(),
+        });
+        let max_samples = std::cmp::max(1, options.max_samples);
+        let mut results = Vec::with_capacity(max_samples as usize);
+        for _ in 0..max_samples {
+            let result = self.run_once(options.clone(), &mut f);
+            results.push(result);
+            if results.len() <= 1 {
+                continue;
+            }
+            let mean = results.iter().map(|r| r.as_secs_f64()).sum::<f64>() / results.len() as f64;
+            let std_dev = (results
+                .iter()
+                .map(|r| (r.as_secs_f64() - mean).powi(2))
+                .sum::<f64>()
+                / (results.len() - 1) as f64)
+                .sqrt();
+            let rsd = std_dev * 100.0 / mean;
+            if rsd < options.max_rsd {
+                break;
+            }
+        }
+        results.into_iter().min_by_key(|r| r.as_ns()).unwrap()
     }
 }
 
