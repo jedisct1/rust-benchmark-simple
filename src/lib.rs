@@ -265,9 +265,9 @@ impl Bench {
         Bench { precision }
     }
 
-    fn run_once<F>(&self, options: Rc<Options>, f: &mut F) -> BenchResult
+    fn run_once<F, G>(&self, options: Rc<Options>, f: &mut F) -> BenchResult
     where
-        F: FnMut(),
+        F: FnMut() -> G,
     {
         let iterations = options.iterations;
         let start = self.precision.now();
@@ -283,9 +283,9 @@ impl Bench {
     }
 
     /// Run a single test.
-    pub fn run<F>(&self, options: &Options, mut f: F) -> BenchResult
+    pub fn run<F, G>(&self, options: &Options, mut f: F) -> BenchResult
     where
-        F: FnMut(),
+        F: FnMut() -> G,
     {
         let options = Rc::new(options.clone());
         let max_samples = std::cmp::max(1, options.max_samples);
