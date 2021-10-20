@@ -13,7 +13,8 @@
 //! }
 //!
 //! let bench = Bench::new();
-//! let res = bench.run(None, || test_function());
+//! let options = Options::default();
+//! let res = bench.run(&options, || test_function());
 //! println!("result: {}", res);
 //! ```
 //!
@@ -28,7 +29,8 @@
 //!
 //! let mut m = vec![0u8; 1_000_000];
 //! let bench = Bench::new();
-//! let res = bench.run(None, || test_function(&mut m));
+//! let options = Options::default();
+//! let res = bench.run(&options, || test_function(&mut m));
 //! let throughput = res.throughput(m.len() as _);
 //! println!("throughput: {}", throughput);
 //! ```
@@ -225,14 +227,11 @@ impl Bench {
     }
 
     /// Run a single test.
-    pub fn run<F>(&self, options: Option<&Options>, mut f: F) -> BenchResult
+    pub fn run<F>(&self, options: &Options, mut f: F) -> BenchResult
     where
         F: FnMut(),
     {
-        let options = Rc::new(match options {
-            Some(options) => options.clone(),
-            None => Default::default(),
-        });
+        let options = Rc::new(options.clone());
         let max_samples = std::cmp::max(1, options.max_samples);
         let mut results = Vec::with_capacity(max_samples as usize);
         for _ in 0..max_samples {
