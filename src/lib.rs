@@ -34,6 +34,29 @@
 //! let throughput = res.throughput(m.len() as _);
 //! println!("throughput: {}", throughput);
 //! ```
+//! Options:
+//!
+//! ```rust
+//! pub struct Options {
+//!     /// Number of iterations to perform.
+//!     pub iterations: u64,
+//!     /// Number of warm-up iterations to perform.
+//!     pub warmup_iterations: u64,
+//!     /// Minimum number of samples to collect.
+//!     pub min_samples: usize,
+//!     /// Maximum number of samples to collect.
+//!     pub max_samples: usize,
+//!     /// Maximum RSD to tolerate (in 0...100).
+//!     pub max_rsd: f64,
+//!     /// Maximum benchmark duration time.
+//!     pub max_duration: Option<std::time::Duration>,
+//!     /// Verbose output
+//!     pub verbose: bool,
+//! }
+//! ```
+//!
+//! Benchmark results can be made verbose by setting `verbose` to `true` in the
+//! `Options` struct, or by defining a `BENCHMARK_VERBOSE` environment variable.
 
 use precision::*;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -41,6 +64,7 @@ use std::mem;
 use std::ops::Add;
 use std::ptr;
 use std::rc::Rc;
+use std::time::Duration;
 
 /// Options.
 #[derive(Clone, Debug)]
@@ -55,19 +79,27 @@ pub struct Options {
     pub max_samples: usize,
     /// Maximum RSD to tolerate (in 0...100).
     pub max_rsd: f64,
+    /// Maximum benchmark duration time.
+    pub max_duration: Option<Duration>,
     /// Verbose output
     pub verbose: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
+        let mut verbose = false;
+        std::env::var("BENCHMARK_VERBOSE")
+            .map(|_| verbose = true)
+            .ok();
+
         Self {
             iterations: 1,
             warmup_iterations: 0,
             min_samples: 3,
             max_samples: 5,
             max_rsd: 5.0,
-            verbose: false,
+            verbose,
+            max_duration: None,
         }
     }
 }
@@ -186,6 +218,21 @@ impl Throughput {
     pub fn as_gb(&self) -> f64 {
         self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0 * 1000.0)
     }
+
+    /// The throughput in kilobits.
+    pub fn as_kb8(&self) -> f64 {
+        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / 1000.0
+    }
+
+    /// The throughput in megabits.
+    pub fn as_mb8(&self) -> f64 {
+        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0)
+    }
+
+    /// The throughput in gigabits.
+    pub fn as_gb8(&self) -> f64 {
+        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0 * 1000.0)
+    }
 }
 
 impl Display for Throughput {
@@ -254,6 +301,7 @@ impl Bench {
             black_box(f());
         }
         let mut results = Vec::with_capacity(max_samples as usize);
+        let start = self.precision.now();
         for i in 1..=max_samples {
             if verbose {
                 println!("Running iteration {}.", i);
@@ -278,7 +326,20 @@ impl Bench {
                 println!("Iteration {}: {:.2}s ± {:.2}%", i, mean, rsd);
             }
             if i >= options.min_samples && rsd < options.max_rsd {
+                if verbose {
+                    println!("Enough samples have been collected.");
+                }
                 break;
+            }
+            if let Some(max_duration) = options.max_duration {
+                let elapsed =
+                    Duration::from_secs((self.precision.now() - start).as_secs(&self.precision));
+                if elapsed >= max_duration {
+                    if verbose {
+                        println!("Timeout.");
+                    }
+                    break;
+                }
             }
         }
         let result = results.into_iter().min_by_key(|r| r.as_ns()).unwrap();
