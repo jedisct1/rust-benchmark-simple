@@ -1,6 +1,6 @@
 [package]
 name = "benchmark-simple"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Frank Denis <github@pureftpd.org>"]
 description = "A tiny, super simple and portable benchmarking library."
 readme = "README.md"
