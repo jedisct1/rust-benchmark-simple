@@ -3,7 +3,8 @@
 //! A tiny benchmarking library for Rust.
 //!
 //! - Trivial to use
-//! - Works pretty much everywhere, including WebAssembly (WASI, but also in-browser)
+//! - Works pretty much everywhere, including WebAssembly (WASI, but also
+//!   in-browser)
 //!
 //! ```rust
 //! use benchmark_simple::*;
@@ -58,13 +59,14 @@
 //! Benchmark results can be made verbose by setting `verbose` to `true` in the
 //! `Options` struct, or by defining a `BENCHMARK_VERBOSE` environment variable.
 
-use precision::*;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem;
 use std::ops::Add;
 use std::ptr;
 use std::rc::Rc;
 use std::time::Duration;
+
+use precision::*;
 
 /// Options.
 #[derive(Clone, Debug)]
