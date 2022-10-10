@@ -302,7 +302,7 @@ impl Bench {
         for _ in 0..options.warmup_iterations {
             black_box(f());
         }
-        let mut results = Vec::with_capacity(max_samples as usize);
+        let mut results = Vec::with_capacity(max_samples);
         let start = self.precision.now();
         for i in 1..=max_samples {
             if verbose {

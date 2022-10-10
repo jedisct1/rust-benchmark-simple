@@ -12,4 +12,4 @@ categories = ["no-std", "wasm"]
 edition = "2018"
 
 [dependencies]
-precision = "0.1.12"
+precision = "0.1.15"
