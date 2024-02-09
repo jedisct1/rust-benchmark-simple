@@ -59,6 +59,7 @@
 //! Benchmark results can be made verbose by setting `verbose` to `true` in the
 //! `Options` struct, or by defining a `BENCHMARK_VERBOSE` environment variable.
 
+use std::cmp::max;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem;
 use std::ops::Add;
@@ -183,57 +184,63 @@ pub struct Throughput {
 impl Throughput {
     /// The throughput as a floating point number.
     pub fn as_f64(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64)
+        self.volume * 1_000_000_000f64 / (max(1, self.result.as_ns()) as f64)
     }
 
     /// The throughput as an integer.
     pub fn as_u128(&self) -> u128 {
-        self.volume as u128 * 1_000_000_000 / (self.result.as_ns() as u128)
+        self.volume as u128 * 1_000_000_000 / (max(1, self.result.as_ns()) as u128)
     }
 
     /// The throughput in kibibytes.
     pub fn as_kib(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / 1024.0
+        self.volume * 1_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / 1024.0
     }
 
     /// The throughput in mebibytes.
     pub fn as_mib(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / (1024.0 * 1024.0)
+        self.volume * 1_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / (1024.0 * 1024.0)
     }
 
     /// The throughput in gibibytes.
     pub fn as_gib(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / (1024.0 * 1024.0 * 1024.0)
+        self.volume * 1_000_000_000f64
+            / (max(1, self.result.as_ns()) as f64)
+            / (1024.0 * 1024.0 * 1024.0)
     }
 
     /// The throughput in kilobytes.
     pub fn as_kb(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / 1000.0
+        self.volume * 1_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / 1000.0
     }
 
     /// The throughput in megabytes.
     pub fn as_mb(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0)
+        self.volume * 1_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / (1000.0 * 1000.0)
     }
 
     /// The throughput in gigabytes.
     pub fn as_gb(&self) -> f64 {
-        self.volume * 1_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0 * 1000.0)
+        self.volume * 1_000_000_000f64
+            / (max(1, self.result.as_ns()) as f64)
+            / (1000.0 * 1000.0 * 1000.0)
     }
 
     /// The throughput in kilobits.
     pub fn as_kb8(&self) -> f64 {
-        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / 1000.0
+        self.volume * 8_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / 1000.0
     }
 
     /// The throughput in megabits.
     pub fn as_mb8(&self) -> f64 {
-        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0)
+        self.volume * 8_000_000_000f64 / (max(1, self.result.as_ns()) as f64) / (1000.0 * 1000.0)
     }
 
     /// The throughput in gigabits.
     pub fn as_gb8(&self) -> f64 {
-        self.volume * 8_000_000_000f64 / (self.result.as_ns() as f64) / (1000.0 * 1000.0 * 1000.0)
+        self.volume * 8_000_000_000f64
+            / (max(1, self.result.as_ns()) as f64)
+            / (1000.0 * 1000.0 * 1000.0)
     }
 }
 
