@@ -1,6 +1,6 @@
 [package]
 name = "benchmark-simple"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Frank Denis <github@pureftpd.org>"]
 description = "A tiny, super simple and portable benchmarking library."
 readme = "README.md"
@@ -12,4 +12,4 @@ categories = ["no-std", "wasm"]
 edition = "2018"
 
 [dependencies]
-precision = "0.1.16"
+precision = "0.1.17"

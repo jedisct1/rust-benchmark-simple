@@ -49,6 +49,7 @@ impl Default for Options {
 }
 
 /// A benchmark result.
+#[derive(Clone)]
 pub struct BenchResult {
     elapsed: Elapsed,
     precision: Precision,
@@ -100,6 +101,31 @@ impl BenchResult {
         Throughput {
             volume: volume as f64,
             result: self,
+            unit: Unit::None,
+        }
+    }
+
+    /// Compute the throughput in bits for a given volume of data.
+    /// The volume is the amount of bytes processed in a single iteration.
+    pub fn throughput_bits(self, mut volume: u128) -> Throughput {
+        volume *= self.options.iterations as u128;
+        volume *= 8;
+        Throughput {
+            volume: volume as f64,
+            result: self,
+            unit: Unit::Bits,
+        }
+    }
+
+    /// Compute the throughput in bytes for a given volume of data.
+    /// The volume is the amount of bytes processed in a single iteration.
+    pub fn throughput_bytes(self, mut volume: u128) -> Throughput {
+        volume *= self.options.iterations as u128;
+        volume *= 8;
+        Throughput {
+            volume: volume as f64,
+            result: self,
+            unit: Unit::Bytes,
         }
     }
 }
@@ -116,10 +142,36 @@ impl Debug for BenchResult {
     }
 }
 
+/// Unit
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Default)]
+pub enum Unit {
+    /// None
+    #[default]
+    None,
+    /// Bytes
+    Bytes,
+    /// Bits
+    Bits,
+}
+
+impl Display for Unit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Unit::None => write!(f, ""),
+            Unit::Bytes => write!(f, "B"),
+            Unit::Bits => write!(f, "b"),
+        }
+    }
+}
+
+
 /// The result of a benchmark, as a throughput.
+#[derive(Clone)]
 pub struct Throughput {
     volume: f64,
     result: BenchResult,
+    unit: Unit,
 }
 
 impl Throughput {
@@ -187,11 +239,25 @@ impl Throughput {
 
 impl Display for Throughput {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self.as_u128() {
-            0..=999 => write!(f, "{:.2} /s", self.as_f64()),
-            1_000..=999_999 => write!(f, "{:.2} K/s", self.as_kb()),
-            1_000_000..=999_999_999 => write!(f, "{:.2} M/s", self.as_mb()),
-            _ => write!(f, "{:.2} G/s", self.as_gb()),
+        match self.unit {
+            Unit::None => match self.as_u128() {
+                0..=999 => write!(f, "{:.2} /s", self.as_f64()),
+                1_000..=999_999 => write!(f, "{:.2} K/s", self.as_kb()),
+                1_000_000..=999_999_999 => write!(f, "{:.2} M/s", self.as_mb()),
+                _ => write!(f, "{:.2} G/s", self.as_gb()),
+            },
+            Unit::Bytes => match self.as_u128() {
+                0..=999 => write!(f, "{:.2} B/s", self.as_f64()),
+                1_000..=999_999 => write!(f, "{:.2} KB/s", self.as_kb()),
+                1_000_000..=999_999_999 => write!(f, "{:.2} MB/s", self.as_mb()),
+                _ => write!(f, "{:.2} GB/s", self.as_gb()),
+            },
+            Unit::Bits => match self.as_u128() {
+                0..=999 => write!(f, "{:.2} b/s", self.as_f64()),
+                1_000..=999_999 => write!(f, "{:.2} Kb/s", self.as_kb()),
+                1_000_000..=999_999_999 => write!(f, "{:.2} Mb/s", self.as_mb()),
+                _ => write!(f, "{:.2} Gb/s", self.as_gb()),
+            },
         }
     }
 }
