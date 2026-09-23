@@ -96,10 +96,13 @@ impl BenchResult {
 
     /// Compute the throughput for a given volume of data.
     /// The volume is the amount of bytes processed in a single iteration.
-    pub fn throughput(self, mut volume: u128) -> Throughput {
-        volume *= self.options.iterations as u128;
+    pub fn throughput(self, volume: u128) -> Throughput {
+        let iterations = self.options.iterations as u128;
+        let volume = volume
+            .checked_mul(iterations)
+            .map_or_else(|| volume as f64 * iterations as f64, |volume| volume as f64);
         Throughput {
-            volume: volume as f64,
+            volume,
             result: self,
             unit: Unit::None,
         }
@@ -107,26 +110,19 @@ impl BenchResult {
 
     /// Compute the throughput in bits for a given volume of data.
     /// The volume is the amount of bytes processed in a single iteration.
-    pub fn throughput_bits(self, mut volume: u128) -> Throughput {
-        volume *= self.options.iterations as u128;
-        volume *= 8;
-        Throughput {
-            volume: volume as f64,
-            result: self,
-            unit: Unit::Bits,
-        }
+    pub fn throughput_bits(self, volume: u128) -> Throughput {
+        let mut throughput = self.throughput(volume);
+        throughput.volume *= 8.0;
+        throughput.unit = Unit::Bits;
+        throughput
     }
 
     /// Compute the throughput in bytes for a given volume of data.
     /// The volume is the amount of bytes processed in a single iteration.
-    pub fn throughput_bytes(self, mut volume: u128) -> Throughput {
-        volume *= self.options.iterations as u128;
-        volume *= 8;
-        Throughput {
-            volume: volume as f64,
-            result: self,
-            unit: Unit::Bytes,
-        }
+    pub fn throughput_bytes(self, volume: u128) -> Throughput {
+        let mut throughput = self.throughput(volume);
+        throughput.unit = Unit::Bytes;
+        throughput
     }
 }
 
@@ -143,8 +139,7 @@ impl Debug for BenchResult {
 }
 
 /// Unit
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum Unit {
     /// None
     #[default]
@@ -165,7 +160,6 @@ impl Display for Unit {
     }
 }
 
-
 /// The result of a benchmark, as a throughput.
 #[derive(Clone)]
 pub struct Throughput {
@@ -181,8 +175,14 @@ impl Throughput {
     }
 
     /// The throughput as an integer.
+    /// Saturates at `u128::MAX` if the rate cannot be represented.
     pub fn as_u128(&self) -> u128 {
-        self.volume as u128 * 1_000_000_000 / (max(1, self.result.as_ns()) as u128)
+        (self.volume as u128)
+            .checked_mul(1_000_000_000)
+            .map_or_else(
+                || self.as_f64() as u128,
+                |volume| volume / max(1, self.result.as_ns()) as u128,
+            )
     }
 
     /// The throughput in kibibytes.
@@ -324,6 +324,16 @@ impl Bench {
             }
             let result = self.run_once(options.clone(), &mut f);
             results.push(result);
+            if let Some(max_duration) = options.max_duration {
+                let elapsed =
+                    Duration::from_nanos((self.precision.now() - start).as_ns(&self.precision));
+                if elapsed >= max_duration {
+                    if verbose {
+                        println!("Timeout.");
+                    }
+                    break;
+                }
+            }
             if results.len() <= 1 {
                 if verbose {
                     println!("Iteration {}: {}", i, results.last().unwrap());
@@ -347,16 +357,6 @@ impl Bench {
                 }
                 break;
             }
-            if let Some(max_duration) = options.max_duration {
-                let elapsed =
-                    Duration::from_secs((self.precision.now() - start).as_secs(&self.precision));
-                if elapsed >= max_duration {
-                    if verbose {
-                        println!("Timeout.");
-                    }
-                    break;
-                }
-            }
         }
         let result = results.into_iter().min_by_key(|r| r.as_ns()).unwrap();
         if verbose {
@@ -379,4 +379,171 @@ pub fn black_box<T>(dummy: T) -> T {
     let ret = unsafe { ptr::read_volatile(&dummy) };
     mem::forget(dummy);
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::OnceLock;
+
+    fn bench() -> Bench {
+        static PRECISION: OnceLock<Precision> = OnceLock::new();
+        Bench {
+            precision: PRECISION
+                .get_or_init(|| {
+                    Precision::new(Config::default().setup_duration(Duration::from_secs(1)))
+                        .unwrap()
+                })
+                .clone(),
+        }
+    }
+
+    fn result(iterations: u64) -> BenchResult {
+        BenchResult {
+            elapsed: Elapsed::new(),
+            precision: bench().precision,
+            options: Rc::new(Options {
+                iterations,
+                ..Options::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn throughput_units_and_iteration_counts() {
+        let result = result(3);
+        let generic = result.clone().throughput(2);
+        let bytes = result.clone().throughput_bytes(2);
+        let bits = result.throughput_bits(2);
+        assert_eq!(generic.as_u128(), 6_000_000_000);
+        assert_eq!(bytes.as_u128(), generic.as_u128());
+        assert_eq!(bits.as_u128(), 8 * bytes.as_u128());
+        assert_eq!(bytes.to_string(), "6.00 GB/s");
+        assert_eq!(bits.to_string(), "48.00 Gb/s");
+    }
+
+    #[test]
+    fn large_volumes_do_not_overflow() {
+        let result = result(u64::MAX);
+        let expected = u128::MAX as f64 * u64::MAX as f64;
+        assert_eq!(result.clone().throughput(u128::MAX).volume, expected);
+        assert_eq!(result.clone().throughput_bytes(u128::MAX).volume, expected);
+        assert_eq!(result.throughput_bits(u128::MAX).volume, expected * 8.0);
+    }
+
+    #[test]
+    fn representable_products_keep_integer_precision() {
+        let volume = (1_u128 << 53) + 1;
+        let result = result(3);
+        assert_eq!(
+            result.clone().throughput(volume).volume,
+            (volume * 3) as f64
+        );
+        assert_eq!(
+            result.throughput_bits(volume).volume,
+            (volume * 3 * 8) as f64
+        );
+    }
+
+    #[test]
+    fn zero_volume_and_iterations_have_zero_throughput() {
+        for (iterations, volume) in [(u64::MAX, 0), (0, u128::MAX)] {
+            let result = result(iterations);
+            for throughput in [
+                result.clone().throughput(volume),
+                result.clone().throughput_bytes(volume),
+                result.throughput_bits(volume),
+            ] {
+                assert_eq!(throughput.as_f64(), 0.0);
+                assert_eq!(throughput.as_u128(), 0);
+            }
+        }
+    }
+
+    #[test]
+    fn integer_throughput_preserves_truncation() {
+        let volume = (1_u128 << 53) - 1;
+        assert_eq!(
+            result(1).throughput(volume).as_u128(),
+            volume * 1_000_000_000
+        );
+        let throughput = BenchResult {
+            elapsed: Elapsed::from_ticks(1_u64 << 32),
+            ..result(1)
+        }
+        .throughput(100_000_000);
+        let expected = 100_000_000_u128 * 1_000_000_000 / max(1, throughput.result.as_ns()) as u128;
+        assert_eq!(throughput.as_u128(), expected);
+    }
+
+    #[test]
+    fn integer_throughput_handles_large_intermediate_products() {
+        let throughput = result(1).throughput(1_u128 << 100);
+        assert_eq!(throughput.as_u128(), u128::MAX);
+        assert!(!throughput.to_string().is_empty());
+        let throughput = Throughput {
+            result: BenchResult {
+                elapsed: Elapsed::from_ticks(1_u64 << 60),
+                ..result(1)
+            },
+            ..throughput
+        };
+        let expected = throughput.as_f64() as u128;
+        assert!(expected > 0 && expected < u128::MAX);
+        assert_eq!(throughput.as_u128(), expected);
+    }
+
+    #[test]
+    fn zero_duration_stops_after_first_sample() {
+        let mut calls = 0;
+        bench().run(
+            &Options {
+                iterations: 1,
+                max_duration: Some(Duration::ZERO),
+                verbose: false,
+                ..Options::default()
+            },
+            || calls += 1,
+        );
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn fractional_duration_stops_after_first_over_budget_sample() {
+        let mut calls = 0;
+        bench().run(
+            &Options {
+                iterations: 1,
+                max_samples: 4,
+                max_rsd: 0.0,
+                max_duration: Some(Duration::from_millis(20)),
+                verbose: false,
+                ..Options::default()
+            },
+            || {
+                calls += 1;
+                std::thread::sleep(Duration::from_millis(50));
+            },
+        );
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn sample_and_warmup_counts_without_timeout() {
+        for max_samples in [0, 1, 4] {
+            let mut calls = 0;
+            bench().run(
+                &Options {
+                    iterations: 3,
+                    warmup_iterations: 2,
+                    max_samples,
+                    max_rsd: 0.0,
+                    verbose: false,
+                    ..Options::default()
+                },
+                || calls += 1,
+            );
+            assert_eq!(calls, 2 + 3 * max(1, max_samples));
+        }
+    }
 }
