@@ -2,9 +2,9 @@
 name = "benchmark-simple"
 version = "0.1.11"
 authors = ["Frank Denis <github@pureftpd.org>"]
-description = "A tiny, super simple and portable benchmarking library."
+description = "A simple benchmarking library for measuring execution time and throughput, with WebAssembly support"
 readme = "README.md"
-keywords = ["bench", "benchmark", "simple"]
+keywords = ["benchmark", "benchmarking", "microbenchmark", "throughput", "wasm"]
 license = "MIT"
 homepage = "https://github.com/jedisct1/rust-benchmark-simple"
 repository = "https://github.com/jedisct1/rust-benchmark-simple"
