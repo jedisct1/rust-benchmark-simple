@@ -1,6 +1,6 @@
 [package]
 name = "benchmark-simple"
-version = "0.1.11"
+version = "0.2.0"
 authors = ["Frank Denis <github@pureftpd.org>"]
 description = "A simple benchmarking library for measuring execution time and throughput, with WebAssembly support"
 readme = "README.md"
